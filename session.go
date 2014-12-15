@@ -154,9 +154,6 @@ func (s *session) submitResponse(st *stream, eof bool) error {
 	if rw.snapHeader.Get("Date") == "" {
 		rw.snapHeader.Add("Date", time.Now().UTC().Format(time.RFC1123))
 	}
-	if rw.snapHeader.Get("server") == "" {
-		rw.snapHeader.Add("Server", "go-nghttp2")
-	}
 
 	for _, vl := range rw.snapHeader {
 		nvlen += len(vl)
