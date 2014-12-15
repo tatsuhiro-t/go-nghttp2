@@ -133,6 +133,9 @@ func (sc *serverConn) serve() {
 		close(sc.writeReqCh)
 		close(sc.readDoneCh)
 		for _, st := range sc.streams {
+			if st.rw == nil {
+				continue
+			}
 			st.rw.c.L.Lock()
 			st.rw.disconnected = true
 			st.rw.c.Signal()
@@ -287,23 +290,42 @@ func (sc *serverConn) headerReadDone(st *stream) error {
 		host = st.header.Get("host")
 	}
 
-	if host == "" || st.path == "" || st.method == "" || st.scheme == "" {
-		if err := sc.s.resetStream(st); err != nil {
-			return fmt.Errorf("sc.s.resetStream(st) failed")
+	justAuthority := false
+	rawurl := st.path
+
+	if st.method == "CONNECT" {
+		if st.authority == "" || st.scheme != "" || st.path != "" {
+			if err := sc.s.resetStream(st); err != nil {
+				return fmt.Errorf("sc.s.resetStream(st) failed")
+			}
+			return nil
 		}
-		return nil
+		justAuthority = true
+		rawurl = "http://" + rawurl
+	} else {
+		if host == "" || st.path == "" || st.method == "" || st.scheme == "" {
+			if err := sc.s.resetStream(st); err != nil {
+				return fmt.Errorf("sc.s.resetStream(st) failed")
+			}
+			return nil
+		}
 	}
 
-	if st.header.Get("host") == "" {
-		st.header.Set("Host", host)
-	}
-
-	url, err := url.ParseRequestURI(st.path)
+	url, err := url.ParseRequestURI(rawurl)
 	if err != nil {
 		if err := sc.s.resetStream(st); err != nil {
 			return fmt.Errorf("sc.s.resetStream(st) failed")
 		}
 		return nil
+	}
+
+	// do the same way in net/http/server.go
+	if justAuthority {
+		url.Scheme = ""
+	}
+
+	if st.header.Get("host") == "" {
+		st.header.Set("Host", host)
 	}
 
 	// cookie header field may be split into multiple fields.
@@ -381,6 +403,9 @@ func (sc *serverConn) handleError(st *stream, code int) {
 }
 
 func (sc *serverConn) handleUpload(st *stream, p []byte) {
+	if st.rw == nil {
+		return
+	}
 	req := st.rw.req
 	if req == nil {
 		return
