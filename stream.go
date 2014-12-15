@@ -36,6 +36,11 @@ type stream struct {
 	header        http.Header // request header fields
 	mustRegHeader bool        // next incoming header must be regular header, not pseudo header
 	headerSize    int         // limit to the sum of header field name/value size in total
+
+	authority string // :authority header field in request
+	method    string // :method header field in request
+	path      string // :path header field in request
+	scheme    string // :scheme header field in request
 }
 
 type requestBody struct {

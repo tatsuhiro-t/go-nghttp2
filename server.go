@@ -280,21 +280,25 @@ func (sc *serverConn) headerReadDone(st *stream) error {
 		return nil
 	}
 
-	host := st.header.Get(":authority")
+	// TODO handle CONNECT method
+
+	host := st.authority
 	if host == "" {
 		host = st.header.Get("host")
 	}
-	path := st.header.Get(":path")
-	method := st.header.Get(":method")
-	scheme := st.header.Get(":scheme")
 
-	if host == "" || path == "" || method == "" || scheme == "" {
+	if host == "" || st.path == "" || st.method == "" || st.scheme == "" {
 		if err := sc.s.resetStream(st); err != nil {
 			return fmt.Errorf("sc.s.resetStream(st) failed")
 		}
 		return nil
 	}
-	url, err := url.ParseRequestURI(path)
+
+	if st.header.Get("host") == "" {
+		st.header.Set("Host", host)
+	}
+
+	url, err := url.ParseRequestURI(st.path)
 	if err != nil {
 		if err := sc.s.resetStream(st); err != nil {
 			return fmt.Errorf("sc.s.resetStream(st) failed")
@@ -320,11 +324,11 @@ func (sc *serverConn) headerReadDone(st *stream) error {
 	rb.c.L = &rb.mu
 
 	req := &http.Request{
-		Method:     method,
+		Method:     st.method,
 		URL:        url,
 		RemoteAddr: sc.remoteAddr,
 		Header:     st.header,
-		RequestURI: path,
+		RequestURI: st.path,
 		Proto:      "HTTP/2.0",
 		ProtoMajor: 2,
 		ProtoMinor: 0,

@@ -32,6 +32,7 @@ import "C"
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 	"unsafe"
 )
@@ -301,13 +302,45 @@ func onHeader(fr *C.nghttp2_frame, name *C.uint8_t, namelen C.size_t, value *C.u
 
 	k := C.GoStringN((*C.char)((unsafe.Pointer)(name)), (C.int)(namelen))
 	v := C.GoStringN((*C.char)((unsafe.Pointer)(value)), (C.int)(valuelen))
+	v = strings.TrimSpace(v)
 
 	if !validateHeaderName(k) || !validateHeaderValue(v) {
 		return 0
 	}
 
 	if k[0] == ':' {
+		bad := false
 		if st.mustRegHeader {
+			bad = true
+		} else {
+			switch k {
+			case ":authority":
+				if len(st.authority) != 0 {
+					bad = true
+					break
+				}
+				st.authority = v
+			case ":method":
+				if len(st.method) != 0 {
+					bad = true
+					break
+				}
+				st.method = v
+			case ":path":
+				if len(st.path) != 0 {
+					bad = true
+					break
+				}
+				st.path = v
+			case ":scheme":
+				if len(st.scheme) != 0 {
+					bad = true
+					break
+				}
+				st.scheme = v
+			}
+		}
+		if bad {
 			if err := s.resetStream(st); err != nil {
 				return C.NGHTTP2_ERR_CALLBACK_FAILURE
 			}
@@ -323,7 +356,9 @@ func onHeader(fr *C.nghttp2_frame, name *C.uint8_t, namelen C.size_t, value *C.u
 		return 0
 	}
 
-	st.header.Add(k, v)
+	if k[0] != ':' {
+		st.header.Add(k, v)
+	}
 
 	return 0
 }
