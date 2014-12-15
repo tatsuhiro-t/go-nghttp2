@@ -164,6 +164,13 @@ func (rw *responseWriter) Write(p []byte) (n int, err error) {
 
 		rw.eof = (rw.req != nil && rw.req.Method == "HEAD") || rw.contentLength == 0 || status == 304 || status == 204
 
+		if bodyAllowedForStatus(status) {
+			_, haveType := header["Content-Type"]
+			if !haveType {
+				header.Set("Content-Type", http.DetectContentType(p))
+			}
+		}
+
 		rw.sc.writeReqCh <- &writeReq{
 			t:      writeReqResponse,
 			rw:     rw,
@@ -236,4 +243,17 @@ func cloneHeader(src http.Header) http.Header {
 		dst[k] = nv
 	}
 	return dst
+}
+
+// bodyAllowedForStatus(), same function defined in net/http/transfer.go
+func bodyAllowedForStatus(status int) bool {
+	switch {
+	case status >= 100 && status <= 199:
+		return false
+	case status == 204:
+		return false
+	case status == 304:
+		return false
+	}
+	return true
 }
