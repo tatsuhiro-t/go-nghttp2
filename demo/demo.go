@@ -25,6 +25,7 @@ package main
 
 import (
 	"github.com/tatsuhiro-t/go-nghttp2"
+	"io"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -57,9 +58,8 @@ func main() {
 		http.ServeFile(w, r, path)
 	})
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("hello world"))
+		io.WriteString(w, "hello world")
 	})
-
 	log.Printf("Listening on " + srv.Addr)
 	nghttp2.ConfigureServer(&srv, &nghttp2.Server{})
 	log.Fatal(srv.ListenAndServeTLS("server.crt", "server.key"))
