@@ -217,7 +217,13 @@ func (sc *serverConn) doRead() {
 			return
 		}
 
-		sc.readCh <- n
+		select {
+		case sc.readCh <- n:
+		case <-sc.readDoneCh:
+			// serve() already existed
+			close(sc.readCh)
+			return
+		}
 
 		if _, ok := <-sc.readDoneCh; !ok {
 			close(sc.readCh)
