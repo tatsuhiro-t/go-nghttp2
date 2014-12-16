@@ -76,7 +76,7 @@ func (srv *Server) handleConn(hs *http.Server, rwc net.Conn, h http.Handler) {
 		buf:        buf,
 		inBuf:      make([]byte, 4096),
 		readCh:     make(chan int),
-		readDoneCh: make(chan bool),
+		readDoneCh: make(chan struct{}),
 		writeReqCh: make(chan *writeReq, 200),
 	}
 	sc.s = newSession(sc)
@@ -123,7 +123,7 @@ type serverConn struct {
 	s *session // session wrapper to nghttp2 C interface
 
 	readCh     chan int
-	readDoneCh chan bool
+	readDoneCh chan struct{}
 	writeReqCh chan *writeReq
 
 	wg sync.WaitGroup // to wait for all handler goroutines finish
@@ -165,7 +165,7 @@ func (sc *serverConn) serve() {
 			if err := sc.handleInput(n); err != nil {
 				return
 			}
-			sc.readDoneCh <- true
+			sc.readDoneCh <- struct{}{}
 		case wreq, ok := <-sc.writeReqCh:
 		Loop:
 			for {
