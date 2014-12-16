@@ -378,6 +378,7 @@ func (sc *serverConn) headerReadDone(st *stream) error {
 	if expect := st.header.Get("Expect"); expect != "" {
 		expect = strings.ToLower(expect)
 		if strings.Contains(expect, "100-continue") {
+			st.header.Del("Expect")
 			if err := sc.s.submitHeaders(st, 100); err != nil {
 				return err
 			}
