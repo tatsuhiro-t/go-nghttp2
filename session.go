@@ -31,6 +31,7 @@ package nghttp2
 import "C"
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -153,7 +154,7 @@ func (s *session) submitResponse(st *stream, eof bool) error {
 	rw.snapHeader.Del("Transfer-Encoding")
 
 	if rw.snapHeader.Get("Date") == "" {
-		rw.snapHeader.Add("Date", time.Now().UTC().Format(time.RFC1123))
+		rw.snapHeader.Add("Date", time.Now().UTC().Format(http.TimeFormat))
 	}
 
 	for _, vl := range rw.snapHeader {
