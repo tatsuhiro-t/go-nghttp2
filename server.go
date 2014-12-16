@@ -285,8 +285,6 @@ func (sc *serverConn) headerReadDone(st *stream) error {
 		return nil
 	}
 
-	// TODO handle CONNECT method
-
 	host := st.authority
 	if host == "" {
 		host = st.header.Get("host")
