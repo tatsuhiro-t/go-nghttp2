@@ -429,9 +429,7 @@ func dataSourceRead(cid C.int32_t, buf *C.uint8_t, buflen C.size_t, dflags *C.ui
 		C.memcpy((unsafe.Pointer)(buf), (unsafe.Pointer)(&rw.p[0]), (C.size_t)(n))
 		rw.p = rw.p[n:]
 		if len(rw.p) == 0 {
-			rw.c.L.Lock()
-			defer rw.c.L.Unlock()
-			rw.c.Signal()
+			rw.dataDoneCh <- struct{}{}
 		}
 	}
 

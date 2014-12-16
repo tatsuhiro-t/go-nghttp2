@@ -32,6 +32,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 )
 
 const (
@@ -124,23 +125,25 @@ type serverConn struct {
 	readCh     chan int
 	readDoneCh chan bool
 	writeReqCh chan *writeReq
+
+	wg sync.WaitGroup // to wait for all handler goroutines finish
 }
 
 func (sc *serverConn) serve() {
 	defer func() {
 		sc.s.free()
 		sc.rwc.Close()
-		close(sc.writeReqCh)
 		close(sc.readDoneCh)
 		for _, st := range sc.streams {
 			if st.rw == nil {
 				continue
 			}
-			st.rw.c.L.Lock()
-			st.rw.disconnected = true
-			st.rw.c.Signal()
-			st.rw.c.L.Unlock()
+			close(st.rw.dataDoneCh)
 		}
+		// wait for handler finished before closing
+		// sc.writeReqCh which handler may write into.
+		sc.wg.Wait()
+		close(sc.writeReqCh)
 	}()
 
 	if err := sc.s.submitSettings([]settingsEntry{{SETTINGS_MAX_CONCURRENT_STREAMS, 100}}); err != nil {
@@ -217,6 +220,7 @@ func (sc *serverConn) doRead() {
 		sc.readCh <- n
 
 		if _, ok := <-sc.readDoneCh; !ok {
+			close(sc.readCh)
 			return
 		}
 	}
@@ -250,6 +254,7 @@ func (sc *serverConn) doWrite() error {
 }
 
 func (sc *serverConn) runHandler(rw *responseWriter, req *http.Request) {
+	defer sc.wg.Done()
 	defer func() {
 		if err := recover(); err != nil {
 			rw.resetStream()
@@ -269,10 +274,7 @@ func (sc *serverConn) openStream(id int32) {
 
 func (sc *serverConn) closeStream(st *stream, errCode uint32) {
 	if st.rw != nil {
-		st.rw.c.L.Lock()
-		defer st.rw.c.L.Unlock()
-		st.rw.disconnected = true
-		st.rw.c.Signal()
+		close(st.rw.dataDoneCh)
 	}
 	delete(sc.streams, st.id)
 }
@@ -365,8 +367,11 @@ func (sc *serverConn) headerReadDone(st *stream) error {
 		req:           req,
 		handlerHeader: make(http.Header),
 		contentLength: -1,
+		// Create at least 1 space so that write is not
+		// blocked
+		dataDoneCh: make(chan struct{}, 1),
 	}
-	rw.c.L = &rw.mu
+
 	st.rw = rw
 	rb.rw = rw
 
@@ -379,6 +384,7 @@ func (sc *serverConn) headerReadDone(st *stream) error {
 		}
 	}
 
+	sc.wg.Add(1)
 	go sc.runHandler(rw, req)
 
 	return nil
@@ -393,10 +399,12 @@ func (sc *serverConn) handleError(st *stream, code int) {
 		handlerHeader: make(http.Header),
 		contentLength: -1,
 	}
-	rw.c.L = &rw.mu
+
 	st.rw = rw
 
+	sc.wg.Add(1)
 	go func() {
+		defer sc.wg.Done()
 		defer rw.finishRequest()
 		http.Error(rw, fmt.Sprintf("%v %v", code, http.StatusText(code)), code)
 	}()

@@ -118,6 +118,8 @@ type responseWriter struct {
 	snapStatus int         // status code sent in response
 	snapHeader http.Header // header fields actually sent in response
 
+	dataDoneCh chan struct{} // to tell handler that data has been written
+
 	// mutated by handler goroutine
 	eof           bool        // no more write is done from handler
 	headerSent    bool        // response header has been sent
@@ -126,10 +128,6 @@ type responseWriter struct {
 	handlerDone   bool        // handler finished
 	contentLength int64       // explicitly-declared Content-Length; or -1
 	written       int64       // number of bytes written in body
-
-	mu           sync.Mutex // guards the following
-	c            sync.Cond
-	disconnected bool // connection is terminated
 }
 
 func (rw *responseWriter) Header() http.Header {
@@ -137,13 +135,6 @@ func (rw *responseWriter) Header() http.Header {
 }
 
 func (rw *responseWriter) Write(p []byte) (n int, err error) {
-	// TODO writing closed channel causes panic
-	defer func() {
-		if r := recover(); r != nil {
-			n = 0
-			err = http.ErrWriteAfterFlush
-		}
-	}()
 	if !rw.headerSent {
 		rw.headerSent = true
 		if rw.status == 0 {
@@ -203,22 +194,16 @@ func (rw *responseWriter) Write(p []byte) (n int, err error) {
 		return len(p), nil
 	}
 
-	rw.c.L.Lock()
-	defer rw.c.L.Unlock()
-	rw.c.Wait()
-
-	if rw.disconnected {
+	if _, ok := <-rw.dataDoneCh; !ok {
+		// stream was closed or connection was closed.
 		rw.eof = true
+		return 0, http.ErrWriteAfterFlush
 	}
 
 	return len(p), nil
 }
 
 func (rw *responseWriter) resetStream() {
-	// TODO writing closed channel causes panic
-	defer func() {
-		recover()
-	}()
 	rw.sc.writeReqCh <- &writeReq{
 		t:       writeReqRstStream,
 		rw:      rw,
