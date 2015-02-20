@@ -300,21 +300,8 @@ func (sc *serverConn) headerReadDone(st *stream) error {
 	rawurl := st.path
 
 	if st.method == "CONNECT" {
-		if st.authority == "" || st.scheme != "" || st.path != "" {
-			if err := sc.s.resetStream(st); err != nil {
-				return fmt.Errorf("sc.s.resetStream(st) failed")
-			}
-			return nil
-		}
 		justAuthority = true
 		rawurl = "http://" + rawurl
-	} else {
-		if host == "" || st.path == "" || st.method == "" || st.scheme == "" {
-			if err := sc.s.resetStream(st); err != nil {
-				return fmt.Errorf("sc.s.resetStream(st) failed")
-			}
-			return nil
-		}
 	}
 
 	url, err := url.ParseRequestURI(rawurl)

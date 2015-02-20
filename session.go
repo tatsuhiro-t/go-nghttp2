@@ -219,45 +219,6 @@ func (s *session) consume(st *stream, n int32) {
 	C.nghttp2_session_consume(s.ns, (C.int32_t)(st.id), (C.size_t)(n))
 }
 
-func validateHeaderName(s string) bool {
-	if len(s) == 0 {
-		return false
-	}
-
-	i := 0
-	if s[0] == ':' {
-		if len(s) == 1 {
-			return false
-		}
-		i = 1
-	}
-
-	for ; i < len(s); i++ {
-		c := s[i]
-		if ('a' <= c && c <= 'z') || c == '-' ||
-			('0' <= c && c <= '9') || c == '!' ||
-			('#' <= c && c <= '\'') || c == '*' ||
-			c == '+' || c == '-' || c == '.' || c == '^' ||
-			c == '_' || c == '`' || c == '|' || c == '~' {
-			continue
-		}
-		return false
-	}
-
-	return true
-}
-
-func validateHeaderValue(s string) bool {
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if (0x21 <= c && c < 0x7f) || c == ' ' || c == '\t' || 0x80 <= c {
-			continue
-		}
-		return false
-	}
-	return true
-}
-
 //export onBeginHeaders
 func onBeginHeaders(fr *C.nghttp2_frame, ptr unsafe.Pointer) C.int {
 	if frameType(fr) != C.NGHTTP2_HEADERS {
@@ -305,60 +266,25 @@ func onHeader(fr *C.nghttp2_frame, name *C.uint8_t, namelen C.size_t, value *C.u
 	v := C.GoStringN((*C.char)((unsafe.Pointer)(value)), (C.int)(valuelen))
 	v = strings.TrimSpace(v)
 
-	if !validateHeaderName(k) || !validateHeaderValue(v) {
-		return 0
-	}
-
 	if k[0] == ':' {
-		bad := false
-		if st.mustRegHeader {
-			bad = true
-		} else {
-			switch k {
-			case ":authority":
-				if len(st.authority) != 0 {
-					bad = true
-					break
-				}
-				st.authority = v
-			case ":method":
-				if len(st.method) != 0 {
-					bad = true
-					break
-				}
-				st.method = v
-			case ":path":
-				if len(st.path) != 0 {
-					bad = true
-					break
-				}
-				st.path = v
-			case ":scheme":
-				if len(st.scheme) != 0 {
-					bad = true
-					break
-				}
-				st.scheme = v
-			}
-		}
-		if bad {
-			if err := s.resetStream(st); err != nil {
-				return C.NGHTTP2_ERR_CALLBACK_FAILURE
-			}
-			return C.NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE
+		switch k {
+		case ":authority":
+			st.authority = v
+		case ":method":
+			st.method = v
+		case ":path":
+			st.path = v
+		case ":scheme":
+			st.scheme = v
 		}
 	} else {
-		st.mustRegHeader = true
+		st.header.Add(k, v)
 	}
 
 	st.headerSize += len(k) + len(v)
 	if st.headerSize > maxHeaderSize {
 		s.sc.handleError(st, 431)
 		return 0
-	}
-
-	if k[0] != ':' {
-		st.header.Add(k, v)
 	}
 
 	return 0
