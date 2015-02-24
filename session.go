@@ -315,10 +315,13 @@ func onFrameRecv(fr *C.nghttp2_frame, ptr unsafe.Pointer) C.int {
 		if !ok {
 			return 0
 		}
-		if err := s.sc.headerReadDone(st); err != nil {
+
+		es := f.hd.flags&C.NGHTTP2_FLAG_END_STREAM != 0
+
+		if err := s.sc.headerReadDone(st, es); err != nil {
 			return C.NGHTTP2_ERR_CALLBACK_FAILURE
 		}
-		if (f.hd.flags & C.NGHTTP2_FLAG_END_STREAM) != 0 {
+		if es {
 			s.sc.handleUpload(st, nil)
 		}
 	}

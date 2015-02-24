@@ -31,6 +31,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -285,7 +286,7 @@ func (sc *serverConn) closeStream(st *stream, errCode uint32) {
 	delete(sc.streams, st.id)
 }
 
-func (sc *serverConn) headerReadDone(st *stream) error {
+func (sc *serverConn) headerReadDone(st *stream, es bool) error {
 	if st.rw != nil {
 		// just return if response is already committed
 		return nil
@@ -335,21 +336,31 @@ func (sc *serverConn) headerReadDone(st *stream) error {
 		}
 	}
 
+	contentLength := int64(-1)
+	if v := st.header.Get("Content-Length"); v != "" {
+		// libnghttp2 guarantees the value of Content-Length
+		// can be parsed as int64_t.
+		contentLength, _ = strconv.ParseInt(v, 10, 64)
+	} else if es {
+		contentLength = 0
+	}
+
 	rb := &requestBody{}
 	rb.c.L = &rb.mu
 
 	req := &http.Request{
-		Method:     st.method,
-		URL:        url,
-		RemoteAddr: sc.remoteAddr,
-		Header:     st.header,
-		RequestURI: st.path,
-		Proto:      "HTTP/2.0",
-		ProtoMajor: 2,
-		ProtoMinor: 0,
-		TLS:        sc.tlsState,
-		Host:       host,
-		Body:       rb,
+		Method:        st.method,
+		URL:           url,
+		RemoteAddr:    sc.remoteAddr,
+		Header:        st.header,
+		RequestURI:    st.path,
+		Proto:         "HTTP/2.0",
+		ProtoMajor:    2,
+		ProtoMinor:    0,
+		TLS:           sc.tlsState,
+		Host:          host,
+		Body:          rb,
+		ContentLength: contentLength,
 	}
 
 	rw := &responseWriter{
