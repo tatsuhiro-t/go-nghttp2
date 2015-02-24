@@ -39,7 +39,7 @@ import (
 )
 
 const (
-	maxHeaderSize = 16384
+	maxHeaderSize = 65536
 )
 
 // A session wraps around nghttp2 C interfaces.
