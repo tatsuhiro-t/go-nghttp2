@@ -106,7 +106,7 @@ func (s *session) wantReadWrite() bool {
 }
 
 const (
-	SETTINGS_MAX_CONCURRENT_STREAMS = (int32)(C.NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS)
+	settingsMaxConcurrentStreams = (int32)(C.NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS)
 )
 
 type settingsEntry struct {

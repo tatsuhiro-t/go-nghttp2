@@ -147,7 +147,7 @@ func (sc *serverConn) serve() {
 		close(sc.writeReqCh)
 	}()
 
-	if err := sc.s.submitSettings([]settingsEntry{{SETTINGS_MAX_CONCURRENT_STREAMS, 100}}); err != nil {
+	if err := sc.s.submitSettings([]settingsEntry{{settingsMaxConcurrentStreams, 100}}); err != nil {
 		return
 	}
 
