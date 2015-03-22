@@ -64,7 +64,6 @@ func newSession(sc *serverConn) *session {
 	C.nghttp2_option_new(&opts)
 	defer C.nghttp2_option_del(opts)
 
-	C.nghttp2_option_set_recv_client_preface(opts, 1)
 	C.nghttp2_option_set_no_auto_window_update(opts, 1)
 
 	s := &session{
