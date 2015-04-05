@@ -57,6 +57,7 @@ func newSession(sc *serverConn) *session {
 	C.nghttp2_session_callbacks_set_on_header_callback(cbs, (C.nghttp2_on_header_callback)(C.on_header))
 	C.nghttp2_session_callbacks_set_on_frame_recv_callback(cbs, (C.nghttp2_on_frame_recv_callback)(C.on_frame_recv))
 	C.nghttp2_session_callbacks_set_on_stream_close_callback(cbs, (C.nghttp2_on_stream_close_callback)(C.on_stream_close))
+	C.nghttp2_session_callbacks_set_send_data_callback(cbs, (C.nghttp2_send_data_callback)(C.send_data))
 	C.nghttp2_session_callbacks_set_on_data_chunk_recv_callback(cbs, (C.nghttp2_on_data_chunk_recv_callback)(C.on_data_chunk_recv))
 
 	opts := (*C.nghttp2_option)(nil)
@@ -235,9 +236,18 @@ func onBeginHeaders(fr *C.nghttp2_frame, ptr unsafe.Pointer) C.int {
 	return 0
 }
 
+func frameHeader(fr *C.nghttp2_frame) *C.nghttp2_frame_hd {
+	return (*C.nghttp2_frame_hd)((unsafe.Pointer)(fr))
+}
+
 func frameType(fr *C.nghttp2_frame) C.int {
-	fhd := (*C.nghttp2_frame_hd)((unsafe.Pointer)(fr))
+	fhd := frameHeader(fr)
 	return (C.int)(fhd._type)
+}
+
+func frameId(fr *C.nghttp2_frame) int32 {
+	fhd := frameHeader(fr)
+	return (int32)(fhd.stream_id)
 }
 
 //export onHeader
@@ -340,6 +350,32 @@ func onStreamClose(id C.int32_t, ec C.uint32_t, ptr unsafe.Pointer) C.int {
 	return 0
 }
 
+//export sendData
+func sendData(fr *C.nghttp2_frame, framehd *C.uint8_t, length C.size_t, ptr unsafe.Pointer) C.int {
+	s := (*session)(ptr)
+	id := frameId(fr)
+	st, ok := s.sc.streams[id]
+	if !ok {
+		panic(fmt.Sprintf("stream %v not found in sendData", id))
+	}
+	rw := st.rw
+	buf := s.sc.buf
+
+	buf.Write(C.GoBytes((unsafe.Pointer)(framehd), 9))
+
+	// we don't use padding at the moment
+
+	if length > 0 {
+		buf.Write(rw.p[:length])
+		rw.p = rw.p[length:]
+		if len(rw.p) == 0 {
+			rw.dataDoneCh <- struct{}{}
+		}
+	}
+
+	return 0
+}
+
 //export dataSourceRead
 func dataSourceRead(cid C.int32_t, buf *C.uint8_t, buflen C.size_t, dflags *C.uint32_t, ptr unsafe.Pointer) C.ssize_t {
 	s := (*session)(ptr)
@@ -355,13 +391,7 @@ func dataSourceRead(cid C.int32_t, buf *C.uint8_t, buflen C.size_t, dflags *C.ui
 		n = len(rw.p)
 	}
 
-	if n > 0 {
-		C.memcpy((unsafe.Pointer)(buf), (unsafe.Pointer)(&rw.p[0]), (C.size_t)(n))
-		rw.p = rw.p[n:]
-		if len(rw.p) == 0 {
-			rw.dataDoneCh <- struct{}{}
-		}
-	}
+	*dflags |= C.NGHTTP2_DATA_FLAG_NO_COPY
 
 	if rw.es {
 		*dflags |= C.NGHTTP2_DATA_FLAG_EOF

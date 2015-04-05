@@ -59,6 +59,14 @@ int on_stream_close(nghttp2_session *session, int32_t stream_id,
   return rv;
 }
 
+int send_data(nghttp2_session *session, nghttp2_frame *frame,
+              const uint8_t *framehd, size_t length,
+              nghttp2_data_source *source, void *user_data) {
+  int rv;
+  rv = sendData((nghttp2_frame *)frame, (uint8_t*)framehd, length, user_data);
+  return rv;
+}
+
 ssize_t data_source_read(nghttp2_session *session, int32_t stream_id,
                          uint8_t *buf, size_t length, uint32_t *data_flags,
                          nghttp2_data_source *source, void *user_data) {

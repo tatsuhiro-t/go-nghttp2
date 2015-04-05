@@ -38,6 +38,10 @@ int on_frame_recv(nghttp2_session *session, const nghttp2_frame *frame,
 int on_stream_close(nghttp2_session *session, int32_t stream_id,
                     uint32_t error_code, void *user_data);
 
+int send_data(nghttp2_session *session, nghttp2_frame *frame,
+              const uint8_t *framehd, size_t length,
+              nghttp2_data_source *source, void *user_data);
+
 ssize_t data_source_read(nghttp2_session *session, int32_t stream_id,
                          uint8_t *buf, size_t length, uint32_t *data_flags,
                          nghttp2_data_source *source, void *user_data);
