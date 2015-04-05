@@ -36,8 +36,8 @@ import (
 	"sync"
 )
 
-const (
-	H2Proto = "h2-14"
+var (
+	H2Protos = []string{"h2", "h2-16", "h2-14"}
 )
 
 // ConfigureServer adds HTTP/2 support to http.Server.
@@ -51,13 +51,15 @@ func ConfigureServer(hs *http.Server, conf *Server) {
 		hs.TLSConfig = new(tls.Config)
 	}
 
-	hs.TLSConfig.NextProtos = append(hs.TLSConfig.NextProtos, H2Proto)
+	hs.TLSConfig.NextProtos = append(hs.TLSConfig.NextProtos, H2Protos...)
 
 	if hs.TLSNextProto == nil {
 		hs.TLSNextProto = map[string]func(*http.Server, *tls.Conn, http.Handler){}
 	}
-	hs.TLSNextProto[H2Proto] = func(hs *http.Server, c *tls.Conn, h http.Handler) {
-		conf.handleConn(hs, c, h)
+	for _, proto := range H2Protos {
+		hs.TLSNextProto[proto] = func(hs *http.Server, c *tls.Conn, h http.Handler) {
+			conf.handleConn(hs, c, h)
+		}
 	}
 }
 
