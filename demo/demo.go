@@ -40,14 +40,7 @@ func main() {
 	srv.Addr = "localhost:3000"
 
 	http.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
-		buf := make([]byte, 4096)
-		for {
-			n, err := r.Body.Read(buf[0:])
-			if err != nil {
-				break
-			}
-			w.Write(buf[:n])
-		}
+		_, _ = io.Copy(w, r.Body)
 	})
 	http.HandleFunc("/file/", func(w http.ResponseWriter, r *http.Request) {
 		root := os.Getenv("DEMO_DOCROOT")
@@ -58,7 +51,7 @@ func main() {
 		http.ServeFile(w, r, path)
 	})
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, "hello world")
+		_, _ = io.WriteString(w, "hello world")
 	})
 	log.Printf("Listening on " + srv.Addr)
 	nghttp2.ConfigureServer(&srv, &nghttp2.Server{})

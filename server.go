@@ -57,8 +57,8 @@ func ConfigureServer(hs *http.Server, conf *Server) {
 		hs.TLSNextProto = map[string]func(*http.Server, *tls.Conn, http.Handler){}
 	}
 	for _, proto := range H2Protos {
-		hs.TLSNextProto[proto] = func(hs *http.Server, c *tls.Conn, h http.Handler) {
-			conf.handleConn(hs, c, h)
+		hs.TLSNextProto[proto] = func(_ *http.Server, c *tls.Conn, h http.Handler) {
+			conf.handleConn(c, h)
 		}
 	}
 }
@@ -66,7 +66,7 @@ func ConfigureServer(hs *http.Server, conf *Server) {
 type Server struct {
 }
 
-func (srv *Server) handleConn(hs *http.Server, rwc net.Conn, h http.Handler) {
+func (srv *Server) handleConn(rwc net.Conn, h http.Handler) {
 	br := bufio.NewReader(rwc)
 	bw := bufio.NewWriterSize(rwc, 4096)
 	buf := bufio.NewReadWriter(br, bw)
@@ -199,13 +199,15 @@ func (sc *serverConn) handleWriteReq(wreq *writeReq) error {
 		rw.snapStatus = wreq.status
 		rw.snapHeader = wreq.header
 		if err := sc.s.submitResponse(rw.st, rw.es); err != nil {
-			return fmt.Errorf("sc.s.submitResponse: %v\n", err)
+			return fmt.Errorf("sc.s.submitResponse: %w", err)
 		}
 	case writeReqData:
 		rw.p = wreq.p
 		sc.s.resumeData(rw.st)
 	case writeReqRstStream:
-		sc.s.resetStreamCode(rw.st, wreq.errCode)
+		if err := sc.s.resetStreamCode(rw.st, wreq.errCode); err != nil {
+			return fmt.Errorf("sc.s.resetStreamCode: %w", err)
+		}
 	case writeReqConsumed:
 		sc.s.consume(rw.st, wreq.n)
 	}
@@ -269,8 +271,8 @@ func (sc *serverConn) runHandler(rw *responseWriter, req *http.Request) {
 			rw.resetStream()
 		}
 	}()
-	defer rw.finishRequest()
 	sc.handler.ServeHTTP(rw, req)
+	_ = rw.finishRequest()
 }
 
 func (sc *serverConn) openStream(id int32) {
@@ -281,7 +283,7 @@ func (sc *serverConn) openStream(id int32) {
 	sc.streams[id] = st
 }
 
-func (sc *serverConn) closeStream(st *stream, errCode uint32) {
+func (sc *serverConn) closeStream(st *stream) {
 	if st.rw != nil {
 		close(st.rw.dataDoneCh)
 	}
@@ -410,8 +412,8 @@ func (sc *serverConn) handleError(st *stream, code int) {
 	sc.wg.Add(1)
 	go func() {
 		defer sc.wg.Done()
-		defer rw.finishRequest()
 		http.Error(rw, fmt.Sprintf("%v %v", code, http.StatusText(code)), code)
+		_ = rw.finishRequest()
 	}()
 }
 

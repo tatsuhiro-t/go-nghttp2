@@ -84,7 +84,7 @@ func (s *session) free() {
 func (s *session) deserialize(p []byte, n int) error {
 	rv := C.nghttp2_session_mem_recv(s.ns, (*C.uint8_t)(&p[0]), (C.size_t)(n))
 	if (int)(rv) < 0 {
-		return fmt.Errorf("nghttp2_session_mem_recv: %v\n", rv)
+		return fmt.Errorf("nghttp2_session_mem_recv: %v", rv)
 	}
 	return nil
 }
@@ -244,13 +244,13 @@ func frameType(fr *C.nghttp2_frame) C.int {
 	return (C.int)(fhd._type)
 }
 
-func frameId(fr *C.nghttp2_frame) int32 {
+func frameID(fr *C.nghttp2_frame) int32 {
 	fhd := frameHeader(fr)
 	return (int32)(fhd.stream_id)
 }
 
 //export onHeader
-func onHeader(fr *C.nghttp2_frame, name *C.uint8_t, namelen C.size_t, value *C.uint8_t, valuelen C.size_t, flags C.uint8_t, ptr unsafe.Pointer) C.int {
+func onHeader(fr *C.nghttp2_frame, name *C.uint8_t, namelen C.size_t, value *C.uint8_t, valuelen C.size_t, _ C.uint8_t, ptr unsafe.Pointer) C.int {
 	if frameType(fr) != C.NGHTTP2_HEADERS {
 		return 0
 	}
@@ -339,20 +339,20 @@ func onFrameRecv(fr *C.nghttp2_frame, ptr unsafe.Pointer) C.int {
 }
 
 //export onStreamClose
-func onStreamClose(id C.int32_t, ec C.uint32_t, ptr unsafe.Pointer) C.int {
+func onStreamClose(id C.int32_t, _ C.uint32_t, ptr unsafe.Pointer) C.int {
 	s := (*session)(ptr)
 	st, ok := s.sc.streams[(int32)(id)]
 	if !ok {
 		return 0
 	}
-	s.sc.closeStream(st, (uint32)(ec))
+	s.sc.closeStream(st)
 	return 0
 }
 
 //export sendData
 func sendData(fr *C.nghttp2_frame, framehd *C.uint8_t, length C.size_t, ptr unsafe.Pointer) C.int {
 	s := (*session)(ptr)
-	id := frameId(fr)
+	id := frameID(fr)
 	st, ok := s.sc.streams[id]
 	if !ok {
 		panic(fmt.Sprintf("stream %v not found in sendData", id))
@@ -360,12 +360,16 @@ func sendData(fr *C.nghttp2_frame, framehd *C.uint8_t, length C.size_t, ptr unsa
 	rw := st.rw
 	buf := s.sc.buf
 
-	buf.Write(C.GoBytes((unsafe.Pointer)(framehd), 9))
+	if _, err := buf.Write(C.GoBytes((unsafe.Pointer)(framehd), 9)); err != nil {
+		return C.NGHTTP2_ERR_CALLBACK_FAILURE
+	}
 
 	// we don't use padding at the moment
 
 	if length > 0 {
-		buf.Write(rw.p[:length])
+		if _, err := buf.Write(rw.p[:length]); err != nil {
+			return C.NGHTTP2_ERR_CALLBACK_FAILURE
+		}
 		rw.p = rw.p[length:]
 		if len(rw.p) == 0 {
 			rw.dataDoneCh <- struct{}{}
@@ -376,7 +380,7 @@ func sendData(fr *C.nghttp2_frame, framehd *C.uint8_t, length C.size_t, ptr unsa
 }
 
 //export dataSourceRead
-func dataSourceRead(cid C.int32_t, buf *C.uint8_t, buflen C.size_t, dflags *C.uint32_t, ptr unsafe.Pointer) C.ssize_t {
+func dataSourceRead(cid C.int32_t, _ *C.uint8_t, buflen C.size_t, dflags *C.uint32_t, ptr unsafe.Pointer) C.ssize_t {
 	s := (*session)(ptr)
 	id := (int32)(cid)
 	st, ok := s.sc.streams[id]

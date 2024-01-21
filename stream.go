@@ -24,6 +24,7 @@
 package nghttp2
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -31,11 +32,10 @@ import (
 )
 
 type stream struct {
-	rw            *responseWriter
-	id            int32       // stream ID
-	header        http.Header // request header fields
-	mustRegHeader bool        // next incoming header must be regular header, not pseudo header
-	headerSize    int         // limit to the sum of header field name/value size in total
+	rw         *responseWriter
+	id         int32       // stream ID
+	header     http.Header // request header fields
+	headerSize int         // limit to the sum of header field name/value size in total
 
 	authority string // :authority header field in request
 	method    string // :method header field in request
@@ -86,9 +86,9 @@ func (rb *requestBody) Close() error {
 	return nil
 }
 
-func (rb *requestBody) write(p []byte) (int, error) {
+func (rb *requestBody) write(p []byte) int {
 	if rb.closed {
-		return len(p), nil
+		return len(p)
 	}
 
 	rb.c.L.Lock()
@@ -99,7 +99,7 @@ func (rb *requestBody) write(p []byte) (int, error) {
 		rb.p = append(rb.p, p...)
 	}
 	rb.c.Signal()
-	return len(p), nil
+	return len(p)
 }
 
 func (rb *requestBody) endStream() bool {
@@ -197,7 +197,7 @@ func (rw *responseWriter) Write(p []byte) (n int, err error) {
 	if _, ok := <-rw.dataDoneCh; !ok {
 		// stream was closed or connection was closed.
 		rw.eof = true
-		return 0, http.ErrWriteAfterFlush
+		return 0, errors.New("write after flush")
 	}
 
 	return len(p), nil
@@ -215,9 +215,11 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.status = code
 }
 
-func (rw *responseWriter) finishRequest() {
+func (rw *responseWriter) finishRequest() error {
 	rw.handlerDone = true
-	rw.Write(nil)
+	_, err := rw.Write(nil)
+
+	return err
 }
 
 func cloneHeader(src http.Header) http.Header {
