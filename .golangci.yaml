@@ -1,0 +1,14 @@
+linters:
+  enable:
+  - bodyclose
+  - exportloopref
+  - gofmt
+  - importas
+  - logrlint
+  - noctx
+  - prealloc
+  - revive
+  - unparam
+  - usestdlibvars
+  - errorlint
+  - perfsprint
