@@ -48,6 +48,7 @@ const (
 type session struct {
 	sc *serverConn
 	ns *C.nghttp2_conn
+	h  cgo.Handle
 }
 
 func newSession(sc *serverConn) *session {
@@ -79,14 +80,16 @@ func newSession(sc *serverConn) *session {
 	}
 
 	h := cgo.NewHandle(s)
+	s.h = h
 
-	C.nghttp2_conn_server_new(&s.ns, &callbacks, &settings, nil, (unsafe.Pointer)(h))
+	C.nghttp2_conn_server_new(&s.ns, &callbacks, &settings, nil, (unsafe.Pointer)(uintptr(h)))
 
 	return s
 }
 
 func (s *session) free() {
 	C.nghttp2_conn_del(s.ns)
+	s.h.Delete()
 	s.ns = nil
 }
 
@@ -207,7 +210,7 @@ func (s *session) consume(st *stream, n int32) {
 }
 
 func session_from_ptr(ptr unsafe.Pointer) *session {
-	h := cgo.Handle(ptr)
+	h := cgo.Handle(uintptr(ptr))
 	return h.Value().(*session)
 }
 
