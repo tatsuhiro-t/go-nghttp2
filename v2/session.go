@@ -65,7 +65,7 @@ func newSession(sc *serverConn) *session {
 
 	var settings C.nghttp2_settings
 
-	C.nghttp2_settings_default(&settings)
+	C.nghttp2_settings_default_versioned(C.NGHTTP2_SETTINGS_VERSION, &settings)
 
 	if os.Getenv("GO_NGHTTP2_DEBUG_LOG") == "1" {
 		settings.log_write = (C.nghttp2_log_write)(C.log_write)
@@ -82,7 +82,10 @@ func newSession(sc *serverConn) *session {
 	h := cgo.NewHandle(s)
 	s.h = h
 
-	C.nghttp2_conn_server_new(&s.ns, &callbacks, &settings, nil, (unsafe.Pointer)(uintptr(h)))
+	C.nghttp2_conn_server_new_versioned(&s.ns,
+		C.NGHTTP2_CALLBACKS_VERSION, &callbacks,
+		C.NGHTTP2_SETTINGS_VERSION, &settings,
+		nil, (unsafe.Pointer)(uintptr(h)))
 
 	return s
 }
