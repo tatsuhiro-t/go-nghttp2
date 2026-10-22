@@ -51,9 +51,9 @@ int recv_data(nghttp2_conn *conn, int64_t stream_id, const uint8_t *data,
   return recvData(stream_id, (uint8_t *)data, datalen, conn_user_data);
 }
 
-int remote_end_stream(nghttp2_conn *conn, int64_t stream_id,
+int end_stream_remote(nghttp2_conn *conn, int64_t stream_id,
                       void *conn_user_data, void *stream_user_data) {
-  return remoteEndStream(stream_id, conn_user_data);
+  return endStreamRemote(stream_id, conn_user_data);
 }
 
 int stream_close(nghttp2_conn *conn, uint32_t flags, int64_t stream_id,

@@ -42,7 +42,7 @@ int end_headers(nghttp2_conn *conn, int64_t stream_id, int fin,
 int recv_data(nghttp2_conn *conn, int64_t stream_id, const uint8_t *data,
               size_t datalen, void *conn_user_data, void *stream_user_data);
 
-int remote_end_stream(nghttp2_conn *conn, int64_t stream_id,
+int end_stream_remote(nghttp2_conn *conn, int64_t stream_id,
                       void *conn_user_data, void *stream_user_data);
 
 int stream_close(nghttp2_conn *conn, uint32_t flags, int64_t stream_id,

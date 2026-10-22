@@ -59,7 +59,7 @@ func newSession(sc *serverConn) *session {
 	callbacks.recv_header = (C.nghttp2_recv_field)(C.recv_header)
 	callbacks.end_headers = (C.nghttp2_end_fields)(C.end_headers)
 	callbacks.recv_data = (C.nghttp2_recv_data)(C.recv_data)
-	callbacks.remote_end_stream = (C.nghttp2_end_stream)(C.remote_end_stream)
+	callbacks.end_stream_remote = (C.nghttp2_end_stream)(C.end_stream_remote)
 	callbacks.stream_close = (C.nghttp2_stream_close)(C.stream_close)
 	callbacks.write_stream_data_offset = (C.nghttp2_write_stream_data_offset)(C.write_stream_data_offset)
 
@@ -306,8 +306,8 @@ func recvData(sid C.int64_t, data *C.uint8_t, datalen C.size_t, ptr unsafe.Point
 	return 0
 }
 
-//export remoteEndStream
-func remoteEndStream(sid C.int64_t, ptr unsafe.Pointer) C.int {
+//export endStreamRemote
+func endStreamRemote(sid C.int64_t, ptr unsafe.Pointer) C.int {
 	s := session_from_ptr(ptr)
 	id := (int64)(sid)
 	st, ok := s.sc.streams[id]
