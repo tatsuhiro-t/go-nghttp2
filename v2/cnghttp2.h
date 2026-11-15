@@ -27,6 +27,9 @@
 
 #include <nghttp2v2/nghttp2.h>
 
+int conn_server_new(nghttp2_conn **conn, const nghttp2_callbacks *callbacks,
+                    const nghttp2_settings *settings, uintptr_t handle);
+
 void rand_bytes(uint8_t *dest, size_t destlen);
 
 int begin_headers(nghttp2_conn *conn, int64_t stream_id, void *conn_user_data,

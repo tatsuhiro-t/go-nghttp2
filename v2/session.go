@@ -82,10 +82,8 @@ func newSession(sc *serverConn) *session {
 	h := cgo.NewHandle(s)
 	s.h = h
 
-	C.nghttp2_conn_server_new_versioned(&s.ns,
-		C.NGHTTP2_CALLBACKS_VERSION, &callbacks,
-		C.NGHTTP2_SETTINGS_VERSION, &settings,
-		nil, (unsafe.Pointer)(uintptr(h)))
+	// Keep the handle an integer in Go; only C may cast it to void *.
+	C.conn_server_new(&s.ns, &callbacks, &settings, C.uintptr_t(h))
 
 	return s
 }
@@ -212,8 +210,8 @@ func (s *session) consume(st *stream, n int32) {
 	C.nghttp2_conn_extend_max_offset(s.ns, (C.size_t)(n))
 }
 
-func session_from_ptr(ptr unsafe.Pointer) *session {
-	h := cgo.Handle(uintptr(ptr))
+func session_from_ptr(ptr C.uintptr_t) *session {
+	h := cgo.Handle(ptr)
 	return h.Value().(*session)
 }
 
@@ -224,14 +222,14 @@ func randBytes(data *C.uint8_t, datalen C.size_t) {
 }
 
 //export beginHeaders
-func beginHeaders(sid C.int64_t, ptr unsafe.Pointer) C.int {
+func beginHeaders(sid C.int64_t, ptr C.uintptr_t) C.int {
 	s := session_from_ptr(ptr)
 	s.sc.openStream((int64)(sid))
 	return 0
 }
 
 //export recvHeader
-func recvHeader(sid C.int64_t, name *C.uint8_t, namelen C.size_t, value *C.uint8_t, valuelen C.size_t, _ C.uint8_t, ptr unsafe.Pointer) C.int {
+func recvHeader(sid C.int64_t, name *C.uint8_t, namelen C.size_t, value *C.uint8_t, valuelen C.size_t, _ C.uint8_t, ptr C.uintptr_t) C.int {
 	s := session_from_ptr(ptr)
 	id := (int64)(sid)
 
@@ -273,7 +271,7 @@ func recvHeader(sid C.int64_t, name *C.uint8_t, namelen C.size_t, value *C.uint8
 }
 
 //export endHeaders
-func endHeaders(sid C.int64_t, fin C.int, ptr unsafe.Pointer) C.int {
+func endHeaders(sid C.int64_t, fin C.int, ptr C.uintptr_t) C.int {
 	s := session_from_ptr(ptr)
 	id := (int64)(sid)
 	st, ok := s.sc.streams[id]
@@ -294,7 +292,7 @@ func endHeaders(sid C.int64_t, fin C.int, ptr unsafe.Pointer) C.int {
 }
 
 //export recvData
-func recvData(sid C.int64_t, data *C.uint8_t, datalen C.size_t, ptr unsafe.Pointer) C.int {
+func recvData(sid C.int64_t, data *C.uint8_t, datalen C.size_t, ptr C.uintptr_t) C.int {
 	s := session_from_ptr(ptr)
 	id := (int64)(sid)
 	st, ok := s.sc.streams[id]
@@ -307,7 +305,7 @@ func recvData(sid C.int64_t, data *C.uint8_t, datalen C.size_t, ptr unsafe.Point
 }
 
 //export endStreamRemote
-func endStreamRemote(sid C.int64_t, ptr unsafe.Pointer) C.int {
+func endStreamRemote(sid C.int64_t, ptr C.uintptr_t) C.int {
 	s := session_from_ptr(ptr)
 	id := (int64)(sid)
 	st, ok := s.sc.streams[id]
@@ -319,7 +317,7 @@ func endStreamRemote(sid C.int64_t, ptr unsafe.Pointer) C.int {
 }
 
 //export streamClose
-func streamClose(sid C.int64_t, _ C.uint32_t, ptr unsafe.Pointer) C.int {
+func streamClose(sid C.int64_t, _ C.uint32_t, ptr C.uintptr_t) C.int {
 	s := session_from_ptr(ptr)
 	st, ok := s.sc.streams[(int64)(sid)]
 	if !ok {
@@ -330,7 +328,7 @@ func streamClose(sid C.int64_t, _ C.uint32_t, ptr unsafe.Pointer) C.int {
 }
 
 //export writeStreamDataOffset
-func writeStreamDataOffset(sid C.int64_t, datalen C.size_t, ptr unsafe.Pointer) C.int {
+func writeStreamDataOffset(sid C.int64_t, datalen C.size_t, ptr C.uintptr_t) C.int {
 	s := session_from_ptr(ptr)
 	id := (int64)(sid)
 	st, ok := s.sc.streams[id]
@@ -350,7 +348,7 @@ func writeStreamDataOffset(sid C.int64_t, datalen C.size_t, ptr unsafe.Pointer) 
 }
 
 //export readData
-func readData(sid C.int64_t, vec *C.nghttp2_vec, veccnt C.size_t, pflags *C.uint32_t, ptr unsafe.Pointer) C.nghttp2_ssize {
+func readData(sid C.int64_t, vec *C.nghttp2_vec, veccnt C.size_t, pflags *C.uint32_t, ptr C.uintptr_t) C.nghttp2_ssize {
 	s := session_from_ptr(ptr)
 	id := (int64)(sid)
 	st, ok := s.sc.streams[id]
